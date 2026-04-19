@@ -42,8 +42,8 @@
 
         /* 游戏内容区 */
         .game-area {
-            height: 300px; /* 保持高度 */
-            background-image: url('Background.png'); /* 基于 image_0.png 的坡面 */
+            height: 300px;
+            background-image: url('Background.png');
             background-size: cover;
             background-position: bottom left;
             position: relative;
@@ -52,27 +52,27 @@
 
         /* 石头 */
         #stone {
-            width: 50px; /* 尺寸参考 image_1.png */
+            width: 50px;
             height: 50px;
             position: absolute;
-            background-image: url('Stone.png'); /* image_1.png */
+            background-image: url('Stone.png');
             background-size: contain;
             background-repeat: no-repeat;
             transform-origin: center center;
-            bottom: 10px; /* 起始位置 */
-            left: -60px; /* 起始位置在西西弗斯前面，屏幕外 */
+            bottom: 10px;
+            left: -60px;
         }
 
         /* 西西弗斯 */
         #sisyphus {
-            width: 30px; /* 尺寸参考 image_2.png */
+            width: 30px;
             height: 60px;
             position: absolute;
-            background-image: url('Sisyphus.png'); /* image_2.png */
+            background-image: url('Sisyphus.png');
             background-size: contain;
             background-repeat: no-repeat;
-            bottom: 10px; /* 起始位置 */
-            left: 10px; /* 起始位置 */
+            bottom: 10px;
+            left: 10px;
         }
 
         /* 底部滑块容器 */
@@ -81,6 +81,7 @@
             background-color: #f0f0f0;
             border-top: 1px solid #eee;
             position: relative;
+            touch-action: none; /* 防止移动端滚动屏幕 */
         }
 
         /* 滑块轨道 */
@@ -103,7 +104,7 @@
             border-radius: 50%;
             position: absolute;
             top: 0;
-            left: -20px; /* 初始位置 */
+            left: -20px;
             cursor: grab;
             transition: transform 0.1s ease-out;
         }
@@ -134,7 +135,9 @@
             border-radius: 3px;
             cursor: pointer;
             text-transform: uppercase;
+            transition: background 0.2s;
         }
+        .verify-btn:active { background-color: #357abd; }
 
         /* 结算弹窗 */
         #status-overlay {
@@ -149,6 +152,7 @@
             text-align: center;
             z-index: 100;
         }
+        #result-desc { max-width: 80%; line-height: 1.5; }
     </style>
 </head>
 <body>
@@ -183,17 +187,27 @@
 <div id="status-overlay">
     <h2 id="result-title">验证失败</h2>
     <p id="result-desc"></p>
-    <button onclick="closeOverlay()" style="padding: 10px 20px; margin-top: 20px;">再次尝试</button>
+    <button onclick="closeOverlay()" style="padding: 10px 20px; margin-top: 20px; cursor: pointer;">再次尝试</button>
 </div>
 
 <script>
-const state = {
-    dragging: false,
-    value: 0, // 0~100
-    velocity: 0,
-    raf: null
+const Config = {
+    slopeFactor: 0.5,
+    gravityNormal: 0.4,
+    gravityTop: 3.6, // 接近山顶时极大的重力阻力
+    slipPenalty: 1.14, // 接近山顶时哪怕按住也会随机滑落的惩罚值
+    successThreshold: 98 // 到达此进度算作"在山顶"
 };
 
+const GameState = {
+    value: 0.0,
+    isDragging: false,
+    hasMoved: false, // 记录是否操作过
+    hasReachedTop: false, // 记录是否曾到达过山顶
+    rafId: null
+};
+
+// DOM 元素引用
 const el = {
     container: document.querySelector('.captcha-container'),
     game: document.querySelector('.game-area'),
@@ -201,13 +215,6 @@ const el = {
     sisyphus: document.getElementById('sisyphus'),
     handle: document.getElementById('slider-handle'),
     overlay: document.getElementById('status-overlay')
-};
-
-const config = {
-    slopeFactor: 0.5,
-    rollbackSpeed: 0.5,
-    fastRollbackSpeed: 2,
-    successThreshold: 95
 };
 
 let layout = {};
@@ -223,33 +230,38 @@ function measure() {
 }
 
 function initGame() {
-    state.value = 0;
-    state.velocity = 0;
-    state.dragging = false;
-    cancelAnimationFrame(state.raf);
-    render();
+    GameState.value = 0;
+    GameState.isDragging = false;
+    GameState.hasMoved = false;
+    GameState.hasReachedTop = false;
+    
+    if (GameState.rafId) cancelAnimationFrame(GameState.rafId);
+    
+    el.handle.classList.remove('dragging');
     closeOverlay();
+    measure();
+    render();
+    loop();
 }
 
 window.addEventListener('resize', measure);
-measure();
 
-/* ---------- 渲染 ---------- */
+/* ---------- 渲染机制 ---------- */
 function render() {
-    const v = state.value;
+    const v = GameState.value;
 
-    // slider
+    // 滑块位置
     const x = (v / 100) * layout.sliderMax;
-    el.handle.style.left = x + 'px';
+    el.handle.style.transform = `translateX(${x}px)`;
 
-    // sisyphus
+    // 西西弗斯位置
     const sx = 10 + (v / 100) * (layout.gameW - 50);
-    const sy = 10 + (v / 40) * (layout.gameH - 50) * config.slopeFactor;
+    const sy = 10 + (v / 40) * (layout.gameH - 50) * Config.slopeFactor;
 
     el.sisyphus.style.left = sx + 'px';
     el.sisyphus.style.bottom = sy + 'px';
 
-    // stone
+    // 石头位置跟随西西弗斯，增加滚动角度
     const stoneX = sx + 15;
     const stoneY = sy + 40;
 
@@ -258,60 +270,93 @@ function render() {
     el.stone.style.transform = `rotate(${v * 10.8}deg)`;
 }
 
-/* ---------- 物理（溜車） ---------- */
+/* ---------- 物理逻辑 ---------- */
 function updatePhysics() {
-    if (state.dragging) return;
-
-    if (state.value > config.successThreshold) {
-        if (Math.random() < 0.9) {
-            state.value -= config.fastRollbackSpeed;
-        } else {
-            return; // 停在頂部
-        }
-    } else if (state.value > 0) {
-        state.value -= config.rollbackSpeed;
+    // 状态机更新
+    if (GameState.value >= Config.successThreshold) {
+        GameState.hasReachedTop = true;
     }
 
-    state.value = Math.max(0, state.value);
+    if (GameState.isDragging) {
+        if (GameState.value > 87 && Math.random() < 0.15) {
+            GameState.value -= Config.slipPenalty;
+        }
+        return; 
+    }
+
+    // 溜车逻辑
+    if (GameState.value > 0) {
+        const gravity = GameState.value > 87 ? Config.gravityTop : Config.gravityNormal;
+        GameState.value -= gravity;
+    }
+
+    // 边界安全
+    GameState.value = Math.max(0, Math.min(101, GameState.value));
 }
 
-/* ---------- 主循環 ---------- */
+/* ---------- 主循环 ---------- */
 function loop() {
     updatePhysics();
     render();
-    state.raf = requestAnimationFrame(loop);
+    GameState.rafId = requestAnimationFrame(loop);
 }
 
-/* ---------- 拖拽（Pointer Events） ---------- */
+/* ---------- 交互层 ---------- */
 let lastX = 0;
 
 el.handle.addEventListener('pointerdown', e => {
-    state.dragging = true;
+    GameState.isDragging = true;
+    GameState.hasMoved = true;
+    el.handle.classList.add('dragging');
     lastX = e.clientX;
     el.handle.setPointerCapture(e.pointerId);
 });
 
 el.handle.addEventListener('pointermove', e => {
-    if (!state.dragging) return;
+    if (!GameState.isDragging) return;
 
     const dx = e.clientX - lastX;
     lastX = e.clientX;
 
-    state.value += (dx / layout.sliderMax) * 100;
-    state.value = Math.max(0, Math.min(100, state.value));
+    GameState.value += (dx / layout.sliderMax) * 100;
+    GameState.value = Math.max(0, Math.min(100, GameState.value));
 });
 
 el.handle.addEventListener('pointerup', () => {
-    state.dragging = false;
+    GameState.isDragging = false;
+    el.handle.classList.remove('dragging');
 });
 
-/* ---------- 驗證 ---------- */
+/* ---------- 核心逻辑 ---------- */
+function checkGameStatus() {
+    const { value, hasMoved, hasReachedTop, isDragging } = GameState;
+    
+    if (!hasMoved && value === 0) return 'UNMOVED';
+    if (hasReachedTop && value === 0 && !isDragging) return 'MOCKED';
+    if (hasReachedTop && value >= Config.successThreshold) return 'SUCCESS';
+    return 'FAILED';
+}
+
 function verify() {
-    if (state.value > config.successThreshold && !state.dragging) {
-        window.location.href = "https://www.bilibili.com/video/BV12SoeYdEH8/";
-    } else {
-        showResult("检测到非西西弗斯行为",
-            "你甚至不是一个合格的西西弗斯。");
+    const status = checkGameStatus();
+
+    switch (status) {
+        case 'UNMOVED':
+            showResult("毫无作为", "石头不会自己飞上山，你甚至连推都不愿意推一下。");
+            break;
+            
+        case 'MOCKED':
+            showResult("西西弗斯式的绝望", "眼看已经到达山顶，却又眼睁睁看它滚落谷底。这才是真正的荒诞。");
+            break;
+            
+        case 'SUCCESS':
+            window.location.href = "https://www.bilibili.com/video/BV12SoeYdEH8/";
+            break;
+            
+        case 'FAILED':
+        default:
+            showResult("半途而废", "你连山顶的风景都没看到就放弃了，这是非西西弗斯行为。");
+            break;
     }
 }
 
@@ -328,7 +373,7 @@ function closeOverlay() {
 
 /* ---------- 啟動 ---------- */
 initGame();
-loop();
+
 </script>
 
 </body>
