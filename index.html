@@ -190,7 +190,7 @@
 <div id="status-overlay">
     <h2 id="result-title">验证失败</h2>
     <p id="result-desc"></p>
-    <button onclick="closeOverlay()" style="padding: 10px 20px; margin-top: 20px; cursor: pointer;">再次尝试</button>
+    <button id="result-btn" onclick="closeOverlay()" style="padding: 10px 20px; margin-top: 20px; cursor: pointer;">再次尝试</button>
 </div>
 
 <script>
@@ -355,6 +355,7 @@ function checkGameStatus() {
 
 function verify() {
     const status = checkGameStatus();
+    const targetUrl = "https://www.bilibili.com/video/BV12SoeYdEH8/";
 
     switch (status) {
         case 'UNMOVED':
@@ -390,17 +391,30 @@ function verify() {
                 "驗證成功",
                 "誰能想到，西西弗斯真的能把巨石永遠釘在山頂！你戰勝了作者設下的無盡折磨，擺脫了滾落的宿命，這波，你贏麻了！",
                 "前往終點",
-                () => window.location.href = "https://www.bilibili.com/video/BV12SoeYdEH8/" 
+                () => window.location.href = targetUrl // 點擊跳轉指定URL
             );
             break;
     }
 }
 
 /* ---------- UI ---------- */
-function showResult(title, desc) {
-    document.getElementById('result-title').innerText = title;
-    document.getElementById('result-desc').innerText = desc;
+function showResult(title, desc, btnText = "再次嘗試", btnAction = closeOverlay) {
+    const resultTitle = document.getElementById('result-title');
+    const resultDesc = document.getElementById('result-desc');
+    const resultBtn = document.getElementById('result-btn');
+    
+    resultBtn.innerText = btnText;
+    resultBtn.onclick = btnAction;
+    
+    resultTitle.innerText = title;
+    resultDesc.innerText = desc;
+    
     el.overlay.style.display = 'flex';
+}
+
+function closeOverlay() {
+    el.overlay.style.display = 'none';
+    initGame();
 }
 
 function closeOverlay() {
