@@ -81,7 +81,7 @@
             background-color: #f0f0f0;
             border-top: 1px solid #eee;
             position: relative;
-            touch-action: none; /* 防止移动端滚动屏幕 */
+            touch-action: none; 
         }
 
         /* 滑块轨道 */
@@ -104,9 +104,10 @@
             border-radius: 50%;
             position: absolute;
             top: 0;
-            left: -20px;
+            left: 10px; /* 留在安全区内 */
             cursor: grab;
             transition: transform 0.1s ease-out;
+            z-index: 10;
         }
 
         .slider-handle.dragging {
@@ -137,6 +138,7 @@
             text-transform: uppercase;
             transition: background 0.2s;
         }
+        
         .verify-btn:active { background-color: #357abd; }
 
         /* 结算弹窗 */
@@ -152,6 +154,7 @@
             text-align: center;
             z-index: 100;
         }
+        
         #result-desc { max-width: 80%; line-height: 1.5; }
     </style>
 </head>
@@ -180,7 +183,7 @@
             <span>🎧</span>
             <span>ⓘ</span>
         </div>
-        <button class="verify-btn" onclick="verify()">验证</button>
+        <button class="verify-btn" id="verify-btn" onclick="verify()">验证</button>
     </div>
 </div>
 
@@ -194,8 +197,8 @@
 const Config = {
     slopeFactor: 0.5,
     gravityNormal: 0.4,
-    gravityTop: 3.6, // 接近山顶时极大的重力阻力
-    slipPenalty: 1.14, // 接近山顶时哪怕按住也会随机滑落的惩罚值
+    gravityTop: 0.8, // 接近山顶时极大的重力阻力
+    slipPenalty: 0.3, // 接近山顶时哪怕按住也会随机滑落的惩罚值
     successThreshold: 98 // 到达此进度算作"在山顶"
 };
 
@@ -221,11 +224,14 @@ let layout = {};
 
 /* ---------- 初始化 ---------- */
 function measure() {
+    const HORIZONTAL_PADDING = 20; 
+    const HANDLE_WIDTH = 40;       
+    
     layout = {
         width: el.container.offsetWidth,
         gameW: el.game.offsetWidth,
         gameH: el.game.offsetHeight,
-        sliderMax: el.container.offsetWidth - 40
+        sliderMax: el.container.offsetWidth - HORIZONTAL_PADDING - HANDLE_WIDTH
     };
 }
 
@@ -278,7 +284,7 @@ function updatePhysics() {
     }
 
     if (GameState.isDragging) {
-        if (GameState.value > 87 && Math.random() < 0.15) {
+        if (GameState.value > 87 && Math.random() < 0.07 ) {
             GameState.value -= Config.slipPenalty;
         }
         return; 
@@ -373,7 +379,6 @@ function closeOverlay() {
 
 /* ---------- 啟動 ---------- */
 initGame();
-
 </script>
 
 </body>
