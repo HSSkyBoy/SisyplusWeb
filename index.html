@@ -335,12 +335,22 @@ el.handle.addEventListener('pointerup', () => {
 
 /* ---------- 核心逻辑 ---------- */
 function checkGameStatus() {
-    const { value, hasMoved, hasReachedTop, isDragging } = GameState;
-    
-    if (!hasMoved && value === 0) return 'UNMOVED';
-    if (hasReachedTop && value === 0 && !isDragging) return 'MOCKED';
+    const { value, hasMoved, hasReachedTop } = GameState;
+
+    // 完全沒動過
+    if (!hasMoved) return 'UNMOVED';
+
+    // 成功到頂，並且穩在頂部
     if (hasReachedTop && value >= Config.successThreshold) return 'SUCCESS';
-    return 'FAILED';
+
+    // 曾經到過頂，但最後滑塊完全退回原點 (進度為 0)
+    if (value === 0) return 'HELPLESS';
+
+    // 曾經到過頂，但正在滾落 (進度大於 0)
+    if (hasReachedTop && value < Config.successThreshold) return 'DESPAIR';
+
+    // 動過，但從未到達過山頂
+    return 'MOCKED';
 }
 
 function verify() {
@@ -348,20 +358,40 @@ function verify() {
 
     switch (status) {
         case 'UNMOVED':
-            showResult("毫无作为", "石头不会自己飞上山，你甚至连推都不愿意推一下。");
+            showResult(
+                "毫无作为", 
+                "石头不会自己飞上山，你甚至连推都不愿意推一下。"
+            );
             break;
             
         case 'MOCKED':
-            showResult("西西弗斯式的绝望", "眼看已经到达山顶，却又眼睁睁看它滚落谷底。这才是真正的荒诞。");
+            showResult(
+                "半途而废", 
+                "你连山顶的风景都没见过就放弃了，这是非西西弗斯的行为。"
+            );
+            break;
+            
+        case 'HELPLESS':
+            showResult(
+                "深深的无力", 
+                "努力过，挣扎过，最后却还是回到了原点，只剩下一声叹息。"
+            );
+            break;
+            
+        case 'DESPAIR':
+            showResult(
+                "西西弗斯式的绝望", 
+                "眼看已抵山顶，却只能眼睁睁看着巨石滚落谷底。这才是真正的荒诞。"
+            );
             break;
             
         case 'SUCCESS':
-            window.location.href = "https://www.bilibili.com/video/BV12SoeYdEH8/";
-            break;
-            
-        case 'FAILED':
-        default:
-            showResult("半途而废", "你连山顶的风景都没看到就放弃了，这是非西西弗斯行为。");
+            showResult(
+                "驗證成功",
+                "誰能想到，西西弗斯真的能把巨石永遠釘在山頂！你戰勝了作者設下的無盡折磨，擺脫了滾落的宿命，這波，你贏麻了！",
+                "前往終點",
+                () => window.location.href = "https://www.bilibili.com/video/BV12SoeYdEH8/" 
+            );
             break;
     }
 }
