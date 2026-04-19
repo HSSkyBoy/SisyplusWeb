@@ -187,155 +187,148 @@
 </div>
 
 <script>
-    const captchaContainer = document.querySelector('.captcha-container');
-    const gameArea = document.querySelector('.game-area');
-    const stone = document.getElementById('stone');
-    const sisyphus = document.getElementById('sisyphus');
-    const sliderContainer = document.querySelector('.slider-container');
-    const sliderHandle = document.getElementById('slider-handle');
-    const overlay = document.getElementById('status-overlay');
+const state = {
+    dragging: false,
+    value: 0, // 0~100
+    velocity: 0,
+    raf: null
+};
 
-    let isDragging = false;
-    let startX = 0;
-    let sliderValue = 0; // 0-100
-    let rollbackTimer = null;
-    const slopeAngleFactor = 0.5; // 控制向上移动的速度与水平移动的比率
+const el = {
+    container: document.querySelector('.captcha-container'),
+    game: document.querySelector('.game-area'),
+    stone: document.getElementById('stone'),
+    sisyphus: document.getElementById('sisyphus'),
+    handle: document.getElementById('slider-handle'),
+    overlay: document.getElementById('status-overlay')
+};
 
-    // 初始化游戏
-    function initGame() {
-        sliderValue = 0;
-        isDragging = false;
-        if (rollbackTimer) cancelAnimationFrame(rollbackTimer);
-        updateSisyphusPosition();
-        closeOverlay();
-    }
+const config = {
+    slopeFactor: 0.5,
+    rollbackSpeed: 0.5,
+    fastRollbackSpeed: 2,
+    successThreshold: 95
+};
 
-    // 更新西西弗斯和石头的位置
-    function updateSisyphusPosition() {
-        const maxX = captchaContainer.offsetWidth - 40; // 滑块轨道长度
-        const currentX = (sliderValue / 100) * maxX; // 滑块当前 X
-        sliderHandle.style.left = currentX + 'px'; // 滑块定位
+let layout = {};
 
-        const areaWidth = gameArea.offsetWidth;
-        const areaHeight = gameArea.offsetHeight;
+/* ---------- 初始化 ---------- */
+function measure() {
+    layout = {
+        width: el.container.offsetWidth,
+        gameW: el.game.offsetWidth,
+        gameH: el.game.offsetHeight,
+        sliderMax: el.container.offsetWidth - 40
+    };
+}
 
-        // 根据 sliderValue 计算西西弗斯和石头在坡面上的位置
-        const sisyphusBaseX = 10;
-        const sisyphusBaseY = 10;
-        const targetX = sisyphusBaseX + (sliderValue / 100) * (areaWidth - 50); // 西西弗斯的 x 位置
-        const targetY = sisyphusBaseY + (sliderValue / 40) * (areaHeight - 50) * slopeAngleFactor; // 西西弗斯的 y 位置
+function initGame() {
+    state.value = 0;
+    state.velocity = 0;
+    state.dragging = false;
+    cancelAnimationFrame(state.raf);
+    render();
+    closeOverlay();
+}
 
-        sisyphus.style.left = targetX + 'px';
-        sisyphus.style.bottom = targetY + 'px';
+window.addEventListener('resize', measure);
+measure();
 
-        // 石头在西西弗斯后面
-        const stoneX = targetX + 15; // 在西西弗斯右侧（西西弗斯推石）
-        const stoneY = targetY + 40; // 在西西弗斯上方
-        stone.style.left = stoneX + 'px';
-        stone.style.bottom = stoneY + 'px';
+/* ---------- 渲染 ---------- */
+function render() {
+    const v = state.value;
 
-        // 石头滚动
-        const rotation = (sliderValue / 100) * 360 * 3; // 滚动圈数
-        stone.style.transform = `rotate(${rotation}deg)`;
-    }
+    // slider
+    const x = (v / 100) * layout.sliderMax;
+    el.handle.style.left = x + 'px';
 
-    // 滑块拖拽逻辑
-    sliderHandle.addEventListener('mousedown', handleDragStart);
-    document.addEventListener('mousemove', handleDragOver);
-    document.addEventListener('mouseup', handleDragEnd);
+    // sisyphus
+    const sx = 10 + (v / 100) * (layout.gameW - 50);
+    const sy = 10 + (v / 40) * (layout.gameH - 50) * config.slopeFactor;
 
-    sliderHandle.addEventListener('touchstart', handleDragStart);
-    document.addEventListener('touchmove', handleDragOver);
-    document.addEventListener('touchend', handleDragEnd);
+    el.sisyphus.style.left = sx + 'px';
+    el.sisyphus.style.bottom = sy + 'px';
 
-    function handleDragStart(e) {
-        isDragging = true;
-        if (rollbackTimer) cancelAnimationFrame(rollbackTimer);
-        startX = (e.type === 'touchstart' ? e.touches[0] : e).clientX;
-        sliderHandle.classList.add('dragging');
-    }
+    // stone
+    const stoneX = sx + 15;
+    const stoneY = sy + 40;
 
-    function handleDragOver(e) {
-        if (!isDragging) return;
-        const maxX = captchaContainer.offsetWidth - 20; // 滑块轨道长度
-        const currentX = (e.type === 'touchmove' ? e.touches[0] : e).clientX;
-        const delta = currentX - startX;
-        // 计算新的 sliderValue (0-100)
-        let newSliderValue = sliderValue + (delta / maxX) * 100;
-        newSliderValue = Math.min(100, Math.max(0, newSliderValue));
+    el.stone.style.left = stoneX + 'px';
+    el.stone.style.bottom = stoneY + 'px';
+    el.stone.style.transform = `rotate(${v * 10.8}deg)`;
+}
 
-        sliderValue = newSliderValue;
-        startX = currentX;
-        updateSisyphusPosition(); // 统一更新
-    }
+/* ---------- 物理（溜車） ---------- */
+function updatePhysics() {
+    if (state.dragging) return;
 
-    function handleDragEnd() {
-        isDragging = false;
-        sliderHandle.classList.remove('dragging');
-        // 如果用户停止拖动，开始溜车
-        rollback();
-    }
-
-    // 自动溜车和滚回逻辑
-    function rollback() {
-        if (rollbackTimer) cancelAnimationFrame(rollbackTimer);
-        rollbackTimer = requestAnimationFrame(rollbackAnimate);
-    }
-
-    function rollbackAnimate() {
-        if (isDragging) return; // 如果正在拖动，则停止溜车
-
-        // 如果石头到达山顶，触发滚回机制
-        if (sliderValue > 95 && !isDragging) {
-            // 有 90% 的概率滚回去
-            const rollbackSuccess = Math.random() < 0.9;
-            if (rollbackSuccess) {
-                // 快速滚回
-                sliderValue -= 2; // 每帧 -2%，比常规溜车快
-                if (sliderValue < 0) sliderValue = 0;
-                updateSisyphusPosition();
-                rollbackTimer = requestAnimationFrame(rollbackAnimate);
-                return; // 跳过常规溜车
-            } else {
-                // 10% 概率停在山顶，不滚回
-                // 停止计时器
-                return;
-            }
-        } else if (sliderValue > 0) {
-            // 常规溜车：每帧减少 sliderValue
-            sliderValue -= 0.5; // 每帧 -0.5%
-            if (sliderValue < 0) sliderValue = 0;
-            updateSisyphusPosition();
-            rollbackTimer = requestAnimationFrame(rollbackAnimate);
-        }
-    }
-
-    // 验证逻辑
-    function verify() {
-        if (rollbackTimer) cancelAnimationFrame(rollbackTimer);
-        if (sliderValue > 95 && !isDragging) {
-            // 石头停在山顶，通过验证
-            // 可以添加成功动画或跳转
-            window.location.href = "https://www.bilibili.com/video/BV1GJ411x7h7";
+    if (state.value > config.successThreshold) {
+        if (Math.random() < 0.9) {
+            state.value -= config.fastRollbackSpeed;
         } else {
-            // 判定为非西西弗斯（即失败）
-            showResult("检测到非西西弗斯行为", "日复一日，永无止境。石头甚至没有推到山顶，或者它滚回去了。你甚至不是一个合格的西西弗斯，更别说是神话中的神人了。");
+            return; // 停在頂部
         }
+    } else if (state.value > 0) {
+        state.value -= config.rollbackSpeed;
     }
 
-    function showResult(title, desc) {
-        document.getElementById('result-title').innerText = title;
-        document.getElementById('result-desc').innerText = desc;
-        overlay.style.display = 'flex';
-    }
+    state.value = Math.max(0, state.value);
+}
 
-    function closeOverlay() {
-        overlay.style.display = 'none';
-        initGame();
-    }
+/* ---------- 主循環 ---------- */
+function loop() {
+    updatePhysics();
+    render();
+    state.raf = requestAnimationFrame(loop);
+}
 
-    // 启动
-    initGame();
+/* ---------- 拖拽（Pointer Events） ---------- */
+let lastX = 0;
+
+el.handle.addEventListener('pointerdown', e => {
+    state.dragging = true;
+    lastX = e.clientX;
+    el.handle.setPointerCapture(e.pointerId);
+});
+
+el.handle.addEventListener('pointermove', e => {
+    if (!state.dragging) return;
+
+    const dx = e.clientX - lastX;
+    lastX = e.clientX;
+
+    state.value += (dx / layout.sliderMax) * 100;
+    state.value = Math.max(0, Math.min(100, state.value));
+});
+
+el.handle.addEventListener('pointerup', () => {
+    state.dragging = false;
+});
+
+/* ---------- 驗證 ---------- */
+function verify() {
+    if (state.value > config.successThreshold && !state.dragging) {
+        window.location.href = "https://www.bilibili.com/video/BV12SoeYdEH8/";
+    } else {
+        showResult("检测到非西西弗斯行为",
+            "你甚至不是一个合格的西西弗斯。");
+    }
+}
+
+/* ---------- UI ---------- */
+function showResult(title, desc) {
+    document.getElementById('result-title').innerText = title;
+    document.getElementById('result-desc').innerText = desc;
+    el.overlay.style.display = 'flex';
+}
+
+function closeOverlay() {
+    el.overlay.style.display = 'none';
+}
+
+/* ---------- 啟動 ---------- */
+initGame();
+loop();
 </script>
 
 </body>
