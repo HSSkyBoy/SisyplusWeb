@@ -156,6 +156,68 @@
         }
         
         #result-desc { max-width: 80%; line-height: 1.5; }
+        
+        /* 关于界面 */
+        #about-box {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 280px;
+            background: white;
+            padding: 20px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            border: 1px solid #dcdcdc; 
+            z-index: 1000;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: translate(-50%, -45%) scale(0.95); }
+            to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .about-header {
+            font-size: 14px;
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .about-body {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #777;
+            border-top: 1px solid #f1f1f1;
+            padding-top: 12px;
+        }
+
+        .about-body a {
+            color: var(--blue-primary);
+            text-decoration: none;
+        }
+
+        .about-body a:hover {
+            text-decoration: underline;
+        }
+
+        /* 按钮 */
+        .about-close-btn {
+            display: block;
+            width: fit-content;
+            margin: 15px 0 0 auto; /* 右对齐，类 Google 布局 */
+            background-color: var(--blue-primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 0px; /* 直角 */
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -165,6 +227,30 @@
         <div class="title-small">拖动滑块，推石上山</div>
         <div class="title-large">西西弗斯验证码</div>
         <div class="title-small" style="margin-top:10px;">日复一日，永无止境</div>
+    </div>
+   
+    <audio id="bg-music" loop>
+        <source src="Background.mp3" type="audio/mpeg">
+        您的浏览器不支持音频播放
+    </audio>
+
+    <div id="about-box">
+        <div class="about-header">About</div>
+        <div class="about-body">
+            <strong style="color: #333;">无尽的努力，荒诞的命运。</strong><br><br>
+            西西弗斯被判处永无止境地推石上山，这是一场关于“徒劳”的交互实验。
+            在这里，巨石滑落不再是失败，而是反抗的开始。<br><br>
+            
+            <small style="color:#888; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;">
+                <b>致谢：</b> <a href="https://github.com/CS-LX" target="_blank">CS-LX</a> [原项目作者 & 灵感提供]<br>
+                <b>维护：</b> <a href="https://github.com/HSSkyBoy" target="_blank"><b>NkBe</b></a>, <a href="https://github.com/mrmiaomrzh" target="_blank"><b>Mrmiaomrzh</b></a><br>
+                <b>技术实现：</b> 原生 JS / CSS3 物理模拟<br>
+            </small>
+            
+            <hr style="border:none; border-top:1px solid #f5f5f5; margin:15px 0;">
+            <i style="color:#aaa; display:block; text-align:center; font-size: 12px;">「我们必须想像西西弗斯是幸福的」</i>
+        </div>
+        <button class="about-close-btn" onclick="toggleAbout(false)">了解</button>
     </div>
 
     <div class="game-area">
@@ -180,8 +266,8 @@
     <div class="footer">
         <div class="icons">
             <span onclick="initGame()">🔄</span>
-            <span>🎧</span>
-            <span>ⓘ</span>
+            <span id="music-btn" onclick="toggleMusic()">🎧</span>
+            <span onclick="toggleAbout(true)">ⓘ</span>
         </div>
         <button class="verify-btn" id="verify-btn" onclick="verify()">验证</button>
     </div>
@@ -252,6 +338,16 @@ function initGame() {
 
 window.addEventListener('resize', measure);
 
+function toggleAbout(show) {
+    const box = document.getElementById('about-box');
+    box.style.display = show ? 'block' : 'none';
+
+    if (show) {
+        GameState.isDragging = false;
+        el.handle.classList.remove('dragging');
+    }
+}
+
 /* ---------- 渲染机制 ---------- */
 function render() {
     const v = GameState.value;
@@ -278,26 +374,36 @@ function render() {
 
 /* ---------- 物理逻辑 ---------- */
 function updatePhysics() {
-    // 状态机更新
-    if (GameState.value >= Config.successThreshold) {
-        GameState.hasReachedTop = true;
-    }
+// 获取音频对象
+const music = document.getElementById('bg-music');
 
-    if (GameState.isDragging) {
-        if (GameState.value > 87 && Math.random() < 0.07 ) {
-            GameState.value -= Config.slipPenalty;
-        }
-        return; 
-    }
+// 状态机更新
+if (GameState.value >= Config.successThreshold) {
+    GameState.hasReachedTop = true;
+}
 
-    // 溜车逻辑
-    if (GameState.value > 0) {
-        const gravity = GameState.value > 87 ? Config.gravityTop : Config.gravityNormal;
-        GameState.value -= gravity;
-    }
+if (GameState.isDragging) {
+    if (music) music.playbackRate = 1.0; 
 
-    // 边界安全
-    GameState.value = Math.max(0, Math.min(101, GameState.value));
+    if (GameState.value > 87 && Math.random() < 0.07 ) {
+        GameState.value -= Config.slipPenalty;
+    }
+    return; toggleMusic
+}
+
+// 溜车逻辑
+if (GameState.value > 0) {
+    const gravity = GameState.value > 87 ? Config.gravityTop : Config.gravityNormal;
+    GameState.value -= gravity;
+    if (music && !music.paused) {
+        music.playbackRate = 2.0; 
+    }
+} else {
+    if (music) music.playbackRate = 1.0;
+}
+
+// 边界安全
+GameState.value = Math.max(0, Math.min(101, GameState.value));
 }
 
 /* ---------- 主循环 ---------- */
@@ -395,6 +501,25 @@ function verify() {
             );
             break;
     }
+}
+
+/* ---------- 音频控制 ---------- */
+let isPlaying = false;
+const music = document.getElementById('bg-music');
+const musicBtn = document.getElementById('music-btn');
+
+function toggleMusic() {
+    if (isPlaying) {
+        music.pause();
+        musicBtn.style.color = '#777'; 
+        musicBtn.style.textShadow = 'none';
+    } else {
+        music.play().catch(err => {
+        });
+        musicBtn.style.color = 'var(--blue-primary)'; 
+        musicBtn.style.textShadow = '0 0 10px var(--blue-primary), 0 0 20px var(--blue-primary)';
+    }
+    isPlaying = !isPlaying;
 }
 
 /* ---------- UI ---------- */
