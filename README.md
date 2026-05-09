@@ -4,7 +4,7 @@
 > **“The struggle itself toward the heights is enough to fill a man's heart.”**
 
 一个基于原生 JavaScript 与 CSS3 物理模拟的“无效化”验证系统实验。
-
+**🌐 [官方網站 | Official Website](https://sisyplusweb.nkbe.top/)**
 ## 🌈 项目简介
 
 **Sisyplus**（西西弗斯-增强版）是一个交互式网页实验。它模仿了现代 UI 中的“验证码”或“进度条”逻辑，但加入了一个残酷的物理现实：无论你如何努力推动那个代表进度的“巨石”，它最终都会因为重力模拟和物理碰撞回到原点。
